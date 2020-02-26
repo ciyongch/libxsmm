@@ -104,12 +104,12 @@ LIBXSMM_VLA_DECL(4,     __mmask32, relubitmask,     (__mmask32*)handle->relumask
 #endif
 
 #if defined(LIBXSMM_DNN_FC_BWD_FUSE_RELU) || defined(LIBXSMM_DNN_FC_BWD_FUSE_SIGMOID)
-element_output_type *grad_output_ptr = (element_output_type*)((char*)handle->scratch + handle->doutput_scratch_mark);
+element_output_type *grad_output_ptr = (element_output_type*)((char*)handle->scratch + handle->upd_scratch_mark);
 element_output_type *tr_doutput_ptr = (element_output_type*)grad_output_ptr + handle->desc.N * handle->desc.K;
 LIBXSMM_VLA_DECL(4, const element_output_type,   doutput_orig, (element_output_type*)handle->grad_output->data, nBlocksOFm, bn, bk);
 #else
 element_output_type *grad_output_ptr = (element_output_type*)handle->grad_output->data;
-element_output_type *tr_doutput_ptr = (element_output_type*)handle->scratch;
+element_output_type *tr_doutput_ptr = (element_output_type*)((char*)handle->scratch + handle->upd_scratch_mark) + handle->desc.N * handle->desc.K;
 #endif
 LIBXSMM_VLA_DECL(4, element_output_type,   doutput, grad_output_ptr, nBlocksOFm, bn, bk);
 LIBXSMM_VLA_DECL(5, element_output_type, doutput_tr, tr_doutput_ptr, nBlocksMB, bn_lp, bk, lpb);
@@ -197,7 +197,7 @@ libxsmm_barrier_wait(handle->barrier, ltid);
 #if defined(LIBXSMM_DNN_FC_BWD_FUSE_BIAS)
 /* Accumulation of bias happens in f32 */
 {
-  float *scratch_dbias = (float*) ((element_output_type*)handle->scratch + handle->desc.N * (handle->desc.K + handle->desc.C) + ltid * bk * 2);
+  float *scratch_dbias = (float*) handle->scratch + ltid * bk;
   if (handle->bk % 16 == 0) {
     __m512 zero_reg = _mm512_setzero_ps();
     __m512 doutput_reg = _mm512_setzero_ps();
@@ -493,7 +493,8 @@ if ( (kind == LIBXSMM_DNN_COMPUTE_KIND_UPD) || (kind == LIBXSMM_DNN_COMPUTE_KIND
   LIBXSMM_VLA_DECL(5,       element_filter_type, dfilter,  (element_filter_type*)handle->grad_filter->data, nBlocksIFm, bc_lp, bk, lpb);
 
   /* Set up tensors for transposing/scratch before vnni reformatting dfilter */
-  element_input_type  *tr_inp_ptr = (element_input_type*) ((element_output_type*)handle->scratch + handle->desc.N * handle->desc.K);
+  char *upd_scratch = (char*)handle->scratch + handle->upd_scratch_mark;
+  element_input_type  *tr_inp_ptr = (element_input_type*) ((element_output_type*)upd_scratch + 2 * handle->desc.N * handle->desc.K);
   float               *dfilter_f32_ptr = (float*) ((element_input_type*)tr_inp_ptr + handle->desc.N * handle->desc.C);
   element_filter_type *dfilter_scratch = (element_filter_type*) ((float*)dfilter_f32_ptr + handle->desc.C * handle->desc.K) + ltid * bc * bk;
 

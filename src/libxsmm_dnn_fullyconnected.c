@@ -550,20 +550,25 @@ LIBXSMM_API libxsmm_dnn_fullyconnected* libxsmm_dnn_create_fullyconnected(libxsm
         handle->blocksofm = handle->desc.K / handle->ofmblock;
       }
       /* create barrier */
+      handle->divergent_bwdupd_par = 0;
       handle->barrier = libxsmm_barrier_create(handle->desc.threads, 1);
 
       /* calculate scratch size */
       if ( (handle->desc.datatype_in == LIBXSMM_DNN_DATATYPE_BF16) && (handle->desc.datatype_out == LIBXSMM_DNN_DATATYPE_F32) ) {
         handle->scratch_size = sizeof(float) * ( ( (size_t)handle->desc.C * (size_t)handle->desc.N ) + ( (size_t)handle->desc.C * (size_t)handle->desc.K ) );
       } else if ( (handle->desc.datatype_in == LIBXSMM_DNN_DATATYPE_BF16) && (handle->desc.datatype_out == LIBXSMM_DNN_DATATYPE_BF16)  ) {
+        if (handle->desc.threads % 2 == 0) {
+          handle->divergent_bwdupd_par = 1;
+          handle->bwd_threads_barrier = libxsmm_barrier_create(handle->desc.threads/2, 1);
+          handle->upd_threads_barrier = libxsmm_barrier_create(handle->desc.threads/2, 1);
+        }
         /* Let's allocate maximum required scratch  */
         size_t size_fwd = sizeof(float) * handle->desc.K * handle->desc.N;
         /* In case of K = 1 we pad A and B to "bk=2" */
         size_t size_bwd = (handle->desc.K != 1) ? ( sizeof(float) * handle->desc.C * handle->desc.N + sizeof(libxsmm_bfloat16) * handle->desc.C * handle->desc.K ) : ( sizeof(float) * handle->desc.C * handle->desc.N + sizeof(libxsmm_bfloat16) * handle->desc.C * 2 + sizeof(libxsmm_bfloat16) * 2 * handle->desc.N );
-        size_t size_upd = sizeof(float) * handle->desc.C * handle->desc.K + sizeof(libxsmm_bfloat16) * handle->desc.threads * handle->bk * handle->bc + sizeof(libxsmm_bfloat16) * (handle->desc.N * (handle->desc.C + handle->desc.K));
-        handle->scratch_size = LIBXSMM_MAX(LIBXSMM_MAX(size_fwd, size_bwd), size_upd);
-        handle->doutput_scratch_mark = handle->scratch_size;
-        handle->scratch_size += 2 * sizeof(libxsmm_bfloat16) * handle->desc.N *  handle->desc.K;
+        size_t size_upd = sizeof(float) * handle->desc.C * handle->desc.K + sizeof(libxsmm_bfloat16) * handle->desc.threads * handle->bk * handle->bc + sizeof(libxsmm_bfloat16) * (handle->desc.N * (handle->desc.C + 2 * handle->desc.K));
+        handle->scratch_size = LIBXSMM_MAX(size_fwd, size_bwd) + size_upd;
+        handle->upd_scratch_mark = LIBXSMM_MAX(size_fwd, size_bwd);
       } else {
         handle->scratch_size = sizeof(float) * ( (((size_t)handle->desc.C + (size_t)handle->desc.K) * (size_t)handle->desc.N) + ((size_t)handle->desc.C * (size_t)handle->desc.K) );
       }

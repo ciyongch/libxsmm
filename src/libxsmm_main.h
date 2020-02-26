@@ -527,6 +527,9 @@ LIBXSMM_EXTERN_C struct LIBXSMM_RETARGETABLE libxsmm_dnn_fullyconnected {
   libxsmm_dnn_tensor* grad_bias;      /* grad bais tensor */
   libxsmm_dnn_tensor* relumask;       /* relumask */
   libxsmm_barrier* barrier;           /* barrier */
+  libxsmm_barrier* bwd_threads_barrier;
+  libxsmm_barrier* upd_threads_barrier;
+  int divergent_bwdupd_par;
   int ifmblock;
   int ofmblock;
   int blocksifm;
@@ -552,7 +555,7 @@ LIBXSMM_EXTERN_C struct LIBXSMM_RETARGETABLE libxsmm_dnn_fullyconnected {
   int bk;
   int bc;
   size_t scratch_size;
-  size_t doutput_scratch_mark;
+  size_t upd_scratch_mark;
   void* scratch;
 
   libxsmm_code_pointer gemm_fwd;     /* ability to hoist forward GEMMs */
