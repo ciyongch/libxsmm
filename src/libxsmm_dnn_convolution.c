@@ -235,11 +235,8 @@ LIBXSMM_API_INLINE int libxsmm_dnn_convolution_setup_avoid_rim_fmas_fwd( libxsmm
   /* Avoid rim FMA if the convolution is 3x3 (non-strided) and the image is "small" */
   if ((handle->desc.R == 3) && (handle->desc.S == 3) &&
       (handle->desc.u  == 1) && (handle->desc.v == 1) &&
-      (handle->desc.pad_h_in == 1) && (handle->desc.pad_w_in == 1) &&
       (handle->desc.H == handle->desc.W) ) {
-    if (handle->ofw <= 28) {
-      result = 1;
-    }
+    result = 1;
     if (handle->datatype_in == LIBXSMM_DNN_DATATYPE_I8) {
       result = 0;
     }
@@ -464,7 +461,9 @@ LIBXSMM_API_INLINE int libxsmm_dnn_convolution_setup_pack_input_upd( libxsmm_dnn
 LIBXSMM_API_INLINE int libxsmm_dnn_convolution_setup_avoid_rim_fmas_upd( libxsmm_dnn_layer* handle ) {
   int result = 0;
   /* Avoid rim FMAs only for small images  */
-  if ( (handle->ofh <= 7) && (handle->desc.R == 3) && (handle->desc.S == 3) && (handle->desc.pad_w == 1) && (handle->desc.pad_h == 1)) {
+  if ((handle->desc.R == 3) && (handle->desc.S == 3) &&
+      (handle->desc.u  == 1) && (handle->desc.v == 1) &&
+      (handle->desc.H == handle->desc.W) ) {
     result = 1;
   }
   if (handle->desc.N != handle->desc.threads) {
@@ -601,6 +600,13 @@ LIBXSMM_API_INLINE int libxsmm_dnn_convolution_setup_linearized_tasklist_upd( li
   if (handle->desc.u == 2 && handle->desc.v == 2 && handle->desc.K == 512) {
     result = 0;
   }
+
+  if ((handle->desc.R == 3) && (handle->desc.S == 3) &&
+      (handle->desc.u  == 1) && (handle->desc.v == 1) &&
+      (handle->desc.H == handle->desc.W) ) {
+    result = 1;
+  }
+
   return result;
 }
 
@@ -791,12 +797,12 @@ LIBXSMM_API_INLINE libxsmm_dnn_err_t libxsmm_dnn_convolution_setup( libxsmm_dnn_
         for (kj = 0; kj < handle->desc.R; kj++) {
           for (ki = 0; ki < handle->desc.S; ki++) {
             handle->A_offsets[i] = (ifm * handle->desc.R * handle->desc.S * handle->ifmblock * handle->ofmblock +
-                  kj * handle->desc.S * handle->ifmblock * handle->ofmblock +
-                  ki * handle->ifmblock * handle->ofmblock) * sizeof(char);
-              handle->B_offsets[i] = (ifm * IFH * IFW * handle->ifmblock +
-                  kj * IFW * handle->ifmblock +
-                  ki * handle->ifmblock) * sizeof(char);
-              i++;
+                kj * handle->desc.S * handle->ifmblock * handle->ofmblock +
+                ki * handle->ifmblock * handle->ofmblock) * sizeof(char);
+            handle->B_offsets[i] = (ifm * IFH * IFW * handle->ifmblock +
+                kj * IFW * handle->ifmblock +
+                ki * handle->ifmblock) * sizeof(char);
+            i++;
           }
         }
       }
@@ -873,7 +879,6 @@ LIBXSMM_API_INLINE libxsmm_dnn_err_t libxsmm_dnn_convolution_setup( libxsmm_dnn_
     libxsmm_dnn_convolution_setup_bf16_upd(handle);
   }
 
-#if 0
   /* Spit out UPD parameters that are selected...  */
   printf("UPD params...\n");
   printf("UPD linearized tasks = %d\n", handle->upd_linearized_tasklist);
@@ -886,7 +891,6 @@ LIBXSMM_API_INLINE libxsmm_dnn_err_t libxsmm_dnn_convolution_setup( libxsmm_dnn_
   printf("UPD weight_copies = %d\n", handle->weight_copies);
   printf("Block upd ofm = %d\n", handle->block_upd_ofm);
   printf("Block upd ifm = %d\n", handle->block_upd_ifm);
-#endif
 
   handle->code_upd[0].ptr = 0;
   handle->code_upd[1].ptr = 0;
@@ -945,6 +949,7 @@ LIBXSMM_API libxsmm_dnn_layer* libxsmm_dnn_create_conv_layer(
   }
   /* we only support physical paddind in these days */
   /* @TODO: add logical padding support */
+#if 0
   if ( ( conv_desc.pad_h != conv_desc.pad_h_in )  ||
       ( conv_desc.pad_w != conv_desc.pad_w_in )  ||
       ( conv_desc.pad_h != conv_desc.pad_h_out ) ||
@@ -952,6 +957,7 @@ LIBXSMM_API libxsmm_dnn_layer* libxsmm_dnn_create_conv_layer(
     *status = LIBXSMM_DNN_ERR_INVALID_PADDING;
     return 0;
   }
+#endif
 
   handle = (libxsmm_dnn_layer*)malloc(sizeof(libxsmm_dnn_layer));
 

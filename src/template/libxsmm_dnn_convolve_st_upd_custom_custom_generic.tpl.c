@@ -25,8 +25,8 @@ LIBXSMM_VLA_DECL(6, element_filter_type, weight_private, (element_filter_type*)w
 int prefetch_mode = (handle->desc.u == 2 || (handle->desc.R == 3 && handle->ofw == 7) ) ? libxsmm_get_gemm_prefetch(LIBXSMM_GEMM_PREFETCH_NONE) : libxsmm_get_gemm_prefetch(LIBXSMM_GEMM_PREFETCH_BL1);
 
 /* Batch reduce related variables */
-const element_output_type *A_ptrs[1024];
-const element_input_type  *B_ptrs[1024];
+const element_output_type *A_ptrs[4096];
+const element_input_type  *B_ptrs[4096];
 unsigned long long n_blocks;
 
 libxsmm_barrier_init(handle->barrier, ltid);
@@ -103,7 +103,7 @@ if (handle->upd_use_batchreduce == 0 && handle->upd_linearized_tasklist == 0) {
   if (handle->upd_linearized_tasklist == 1) {
     /* Amount of work when using linearized view of tasks */
     const int work = handle->desc.R * handle->desc.S * handle->blocksofm * handle->blocksifm;
-    const int chunksize = (work % handle->desc.threads == 0) ? (work / handle->desc.threads) : (work / handle->desc.threads) + 1;
+    int chunksize = (work % handle->desc.threads == 0) ? (work / handle->desc.threads) : (work / handle->desc.threads) + 1;
     const int work_begin = (ltid * chunksize < work) ? (ltid * chunksize) : work;
     const int work_end = ((ltid + 1) * chunksize < work) ? ((ltid + 1) * chunksize) : work;
     int work_item;
@@ -191,62 +191,110 @@ if (handle->upd_use_batchreduce == 0 && handle->upd_linearized_tasklist == 0) {
         ki = ((work_item%(Cb*R*S))%(R*S))%S;
         oi = 0;
         oj = 0;
-        ii = oi * handle->desc.u + ki;
-        ij = oj * handle->desc.v + kj;
+        ii = 0;
+        ij = 0;
         img = 0;
         img_block_size = handle->desc.N;
 
         if (kj == 0) {
-          ind = 0;
-          for (img_br = 0; img_br < img_block_size; img_br++) {
-            for (j_br = 1; j_br < handle->upd_ofh_rb; j_br++) {
-              A_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, output, img + img_br, ofm1, oj + j_br, oi, 0, handle->blocksofm, handle->ofhp, handle->ofwp, handle->ofmblock);
-              B_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, input, img + img_br, ifm1, ij + j_br * handle->desc.u, ii, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
-              ind++;
-            }
-          }
-          n_blocks = ind;
-          br_gemm_kernel(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_global, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
-        } else if (ki == 0) {
-          ind = 0;
-          for (img_br = 0; img_br < img_block_size; img_br++) {
-            for (j_br = 0; j_br < handle->upd_ofh_rb; j_br++) {
-              A_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, output, img + img_br, ofm1, oj + j_br, oi + 1, 0, handle->blocksofm, handle->ofhp, handle->ofwp, handle->ofmblock);
-              B_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, input, img + img_br, ifm1, ij + j_br * handle->desc.u, ii + 1, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
-              ind++;
-            }
-          }
-          n_blocks = ind;
-          br_gemm_kernel2(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_global, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
-        } else if (oi == handle->ofw-handle->fwd_ofw_rb  && ki == handle->desc.S-1) {
-          ind = 0;
-          for (img_br = 0; img_br < img_block_size; img_br++) {
-            for (j_br = 0; j_br < handle->upd_ofh_rb; j_br++) {
-              A_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, output, img + img_br, ofm1, oj + j_br, oi, 0, handle->blocksofm, handle->ofhp, handle->ofwp, handle->ofmblock);
-              B_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, input, img + img_br, ifm1, ij + j_br * handle->desc.u, ii, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
-              ind++;
-            }
-          }
-          n_blocks = ind;
-          br_gemm_kernel2(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_global, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
-        } else {
-          if (kj == handle->desc.R-1) {
+          if (ki == 0) {
             ind = 0;
             for (img_br = 0; img_br < img_block_size; img_br++) {
-              for (j_br = 0; j_br < handle->upd_ofh_rb-1; j_br++) {
+              for (j_br = 1; j_br < handle->upd_ofh_rb; j_br++) {
+                A_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, output, img + img_br, ofm1, oj + j_br, oi + 1, 0, handle->blocksofm, handle->ofhp, handle->ofwp, handle->ofmblock);
+                B_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, input, img + img_br, ifm1, ij + j_br - 1, ii, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+                ind++;
+              }
+            }
+            n_blocks = ind;
+            br_gemm_kernel2(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_global, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
+          } else if (ki == 2) {
+            ind = 0;
+            for (img_br = 0; img_br < img_block_size; img_br++) {
+              for (j_br = 1; j_br < handle->upd_ofh_rb; j_br++) {
                 A_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, output, img + img_br, ofm1, oj + j_br, oi, 0, handle->blocksofm, handle->ofhp, handle->ofwp, handle->ofmblock);
-                B_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, input, img + img_br, ifm1, ij + j_br * handle->desc.u, ii, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+                B_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, input, img + img_br, ifm1, ij + j_br - 1, ii + 1, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+                ind++;
+              }
+            }
+            n_blocks = ind;
+            br_gemm_kernel2(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_global, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
+          } else {
+            ind = 0;
+            for (img_br = 0; img_br < img_block_size; img_br++) {
+              for (j_br = 1; j_br < handle->upd_ofh_rb; j_br++) {
+                A_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, output, img + img_br, ofm1, oj + j_br, oi, 0, handle->blocksofm, handle->ofhp, handle->ofwp, handle->ofmblock);
+                B_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, input, img + img_br, ifm1, ij + j_br - 1, ii, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
                 ind++;
               }
             }
             n_blocks = ind;
             br_gemm_kernel(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_global, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
+          }
+        } else if (kj == 1) {
+          if (ki == 0) {
+            ind = 0;
+            for (img_br = 0; img_br < img_block_size; img_br++) {
+              for (j_br = 0; j_br < handle->upd_ofh_rb; j_br++) {
+                A_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, output, img + img_br, ofm1, oj + j_br, oi + 1, 0, handle->blocksofm, handle->ofhp, handle->ofwp, handle->ofmblock);
+                B_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, input, img + img_br, ifm1, ij + j_br, ii, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+                ind++;
+              }
+            }
+            n_blocks = ind;
+            br_gemm_kernel2(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_global, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
+          } else if (ki == 2) {
+            ind = 0;
+            for (img_br = 0; img_br < img_block_size; img_br++) {
+              for (j_br = 0; j_br < handle->upd_ofh_rb; j_br++) {
+                A_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, output, img + img_br, ofm1, oj + j_br, oi, 0, handle->blocksofm, handle->ofhp, handle->ofwp, handle->ofmblock);
+                B_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, input, img + img_br, ifm1, ij + j_br, ii + 1, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+                ind++;
+              }
+            }
+            n_blocks = ind;
+            br_gemm_kernel2(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_global, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
           } else {
             ind = 0;
             for (img_br = 0; img_br < img_block_size; img_br++) {
               for (j_br = 0; j_br < handle->upd_ofh_rb; j_br++) {
                 A_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, output, img + img_br, ofm1, oj + j_br, oi, 0, handle->blocksofm, handle->ofhp, handle->ofwp, handle->ofmblock);
-                B_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, input, img + img_br, ifm1, ij + j_br * handle->desc.u, ii, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+                B_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, input, img + img_br, ifm1, ij + j_br, ii, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+                ind++;
+              }
+            }
+            n_blocks = ind;
+            br_gemm_kernel(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_global, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
+          }
+        } else if ( kj == 2) {
+          if (ki == 0) {
+            ind = 0;
+            for (img_br = 0; img_br < img_block_size; img_br++) {
+              for (j_br = 1; j_br < handle->upd_ofh_rb; j_br++) {
+                A_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, output, img + img_br, ofm1, oj + j_br - 1, oi + 1, 0, handle->blocksofm, handle->ofhp, handle->ofwp, handle->ofmblock);
+                B_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, input, img + img_br, ifm1, ij + j_br, ii, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+                ind++;
+              }
+            }
+            n_blocks = ind;
+            br_gemm_kernel2(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_global, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
+          } else if (ki == 2) {
+            ind = 0;
+            for (img_br = 0; img_br < img_block_size; img_br++) {
+              for (j_br = 1; j_br < handle->upd_ofh_rb; j_br++) {
+                A_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, output, img + img_br, ofm1, oj + j_br - 1, oi, 0, handle->blocksofm, handle->ofhp, handle->ofwp, handle->ofmblock);
+                B_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, input, img + img_br, ifm1, ij + j_br, ii + 1, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
+                ind++;
+              }
+            }
+            n_blocks = ind;
+            br_gemm_kernel2(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_global, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
+          } else {
+            ind = 0;
+            for (img_br = 0; img_br < img_block_size; img_br++) {
+              for (j_br = 1; j_br < handle->upd_ofh_rb; j_br++) {
+                A_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, output, img + img_br, ofm1, oj + j_br - 1, oi, 0, handle->blocksofm, handle->ofhp, handle->ofwp, handle->ofmblock);
+                B_ptrs[ind] = &LIBXSMM_VLA_ACCESS(5, input, img + img_br, ifm1, ij + j_br, ii, 0, handle->blocksifm, handle->ifhp, handle->ifwp, handle->ifmblock);
                 ind++;
               }
             }
