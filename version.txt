@@ -1,1 +1,1 @@
-logical_padding_3x3_cnns-1.15-58
+logical_padding_3x3_cnns-1.15-59

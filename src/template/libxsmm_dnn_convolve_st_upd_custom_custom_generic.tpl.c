@@ -102,10 +102,10 @@ if (handle->upd_use_batchreduce == 0 && handle->upd_linearized_tasklist == 0) {
 } else {
   if (handle->upd_linearized_tasklist == 1) {
     /* Amount of work when using linearized view of tasks */
-    const int work = handle->desc.R * handle->desc.S * handle->blocksofm * handle->blocksifm;
+    int work = handle->desc.R * handle->desc.S * handle->blocksofm * handle->blocksifm;
     int chunksize = (work % handle->desc.threads == 0) ? (work / handle->desc.threads) : (work / handle->desc.threads) + 1;
-    const int work_begin = (ltid * chunksize < work) ? (ltid * chunksize) : work;
-    const int work_end = ((ltid + 1) * chunksize < work) ? ((ltid + 1) * chunksize) : work;
+    int work_begin = (ltid * chunksize < work) ? (ltid * chunksize) : work;
+    int work_end = ((ltid + 1) * chunksize < work) ? ((ltid + 1) * chunksize) : work;
     int work_item;
     int Cb = handle->blocksifm;
 #if 0
@@ -184,6 +184,16 @@ if (handle->upd_use_batchreduce == 0 && handle->upd_linearized_tasklist == 0) {
       gemm_br_function br_gemm_kernel = libxsmm_smmdispatch_reducebatch_addr(handle->ofmblock, handle->ifmblock, handle->upd_ofw_rb, &LDA, &LDB, &LDC, NULL, &beta, &l_flags, &prefetch_mode);
       gemm_br_function br_gemm_kernel2 = libxsmm_smmdispatch_reducebatch_addr(handle->ofmblock, handle->ifmblock, handle->upd_ofw_rb-1, &LDA, &LDB, &LDC, NULL, &beta, &l_flags, &prefetch_mode);
 
+      if (handle->weight_copies != 1) {
+        work_begin = 0;
+        work_end = work;
+        img_block_size = handle->desc.N/handle->desc.threads;
+        img = ltid * img_block_size;
+      } else {
+        img_block_size = handle->desc.N;
+        img = 0;
+      }
+
       for (work_item = work_begin; work_item < work_end; work_item++) {
         ofm1 = work_item/(Cb*R*S);
         ifm1 = (work_item%(Cb*R*S))/(R*S);
@@ -193,8 +203,6 @@ if (handle->upd_use_batchreduce == 0 && handle->upd_linearized_tasklist == 0) {
         oj = 0;
         ii = 0;
         ij = 0;
-        img = 0;
-        img_block_size = handle->desc.N;
 
         if (kj == 0) {
           if (ki == 0) {
@@ -207,7 +215,7 @@ if (handle->upd_use_batchreduce == 0 && handle->upd_linearized_tasklist == 0) {
               }
             }
             n_blocks = ind;
-            br_gemm_kernel2(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_global, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
+            br_gemm_kernel2(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_private, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
           } else if (ki == 2) {
             ind = 0;
             for (img_br = 0; img_br < img_block_size; img_br++) {
@@ -218,7 +226,7 @@ if (handle->upd_use_batchreduce == 0 && handle->upd_linearized_tasklist == 0) {
               }
             }
             n_blocks = ind;
-            br_gemm_kernel2(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_global, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
+            br_gemm_kernel2(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_private, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
           } else {
             ind = 0;
             for (img_br = 0; img_br < img_block_size; img_br++) {
@@ -229,7 +237,7 @@ if (handle->upd_use_batchreduce == 0 && handle->upd_linearized_tasklist == 0) {
               }
             }
             n_blocks = ind;
-            br_gemm_kernel(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_global, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
+            br_gemm_kernel(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_private, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
           }
         } else if (kj == 1) {
           if (ki == 0) {
@@ -242,7 +250,7 @@ if (handle->upd_use_batchreduce == 0 && handle->upd_linearized_tasklist == 0) {
               }
             }
             n_blocks = ind;
-            br_gemm_kernel2(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_global, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
+            br_gemm_kernel2(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_private, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
           } else if (ki == 2) {
             ind = 0;
             for (img_br = 0; img_br < img_block_size; img_br++) {
@@ -253,7 +261,7 @@ if (handle->upd_use_batchreduce == 0 && handle->upd_linearized_tasklist == 0) {
               }
             }
             n_blocks = ind;
-            br_gemm_kernel2(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_global, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
+            br_gemm_kernel2(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_private, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
           } else {
             ind = 0;
             for (img_br = 0; img_br < img_block_size; img_br++) {
@@ -264,7 +272,7 @@ if (handle->upd_use_batchreduce == 0 && handle->upd_linearized_tasklist == 0) {
               }
             }
             n_blocks = ind;
-            br_gemm_kernel(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_global, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
+            br_gemm_kernel(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_private, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
           }
         } else if ( kj == 2) {
           if (ki == 0) {
@@ -277,7 +285,7 @@ if (handle->upd_use_batchreduce == 0 && handle->upd_linearized_tasklist == 0) {
               }
             }
             n_blocks = ind;
-            br_gemm_kernel2(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_global, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
+            br_gemm_kernel2(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_private, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
           } else if (ki == 2) {
             ind = 0;
             for (img_br = 0; img_br < img_block_size; img_br++) {
@@ -288,7 +296,7 @@ if (handle->upd_use_batchreduce == 0 && handle->upd_linearized_tasklist == 0) {
               }
             }
             n_blocks = ind;
-            br_gemm_kernel2(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_global, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
+            br_gemm_kernel2(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_private, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
           } else {
             ind = 0;
             for (img_br = 0; img_br < img_block_size; img_br++) {
@@ -299,7 +307,7 @@ if (handle->upd_use_batchreduce == 0 && handle->upd_linearized_tasklist == 0) {
               }
             }
             n_blocks = ind;
-            br_gemm_kernel(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_global, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
+            br_gemm_kernel(A_ptrs, B_ptrs, &LIBXSMM_VLA_ACCESS(6, weight_private, ofm1, ifm1, kj, ki, 0, 0, handle->blocksifm, handle->desc.R, handle->desc.S, handle->ifmblock, handle->ofmblock), &n_blocks);
           }
         }
       }

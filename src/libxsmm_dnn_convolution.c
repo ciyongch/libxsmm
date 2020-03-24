@@ -576,6 +576,9 @@ LIBXSMM_API_INLINE int libxsmm_dnn_convolution_setup_weight_copies_upd( libxsmm_
   /* Make sure a single copy when we use linearized-task view */
   if (handle->upd_linearized_tasklist == 1) {
     result = 1;
+    if (handle->desc.R  == 3 && handle->desc.S == 3 && handle->desc.C < 512) {
+      result = handle->desc.threads;
+    }
   }
   return result;
 }
@@ -879,6 +882,7 @@ LIBXSMM_API_INLINE libxsmm_dnn_err_t libxsmm_dnn_convolution_setup( libxsmm_dnn_
     libxsmm_dnn_convolution_setup_bf16_upd(handle);
   }
 
+#if 0
   /* Spit out UPD parameters that are selected...  */
   printf("UPD params...\n");
   printf("UPD linearized tasks = %d\n", handle->upd_linearized_tasklist);
@@ -891,6 +895,7 @@ LIBXSMM_API_INLINE libxsmm_dnn_err_t libxsmm_dnn_convolution_setup( libxsmm_dnn_
   printf("UPD weight_copies = %d\n", handle->weight_copies);
   printf("Block upd ofm = %d\n", handle->block_upd_ofm);
   printf("Block upd ifm = %d\n", handle->block_upd_ifm);
+#endif
 
   handle->code_upd[0].ptr = 0;
   handle->code_upd[1].ptr = 0;
