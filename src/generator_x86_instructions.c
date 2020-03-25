@@ -1951,15 +1951,73 @@ void libxsmm_x86_instruction_vec_compute_reg_mask( libxsmm_generated_code* io_ge
        case LIBXSMM_X86_INSTR_VBLENDMPS:
           if ( i_immediate != LIBXSMM_X86_IMM_UNDEF )
           {
-              fprintf(stderr,"libxsmm_instruction_vec_compute_reg_mask immediate=%u != %i\n",i_immediate,LIBXSMM_X86_IMM_UNDEF);
+              fprintf(stderr,"libxsmm_instruction_vec_compute_reg_mask for VBLENDMPS immediate=%u != %i\n",i_immediate,LIBXSMM_X86_IMM_UNDEF);
               exit(-1);
           }
           l_second = 0x1;
           l_fourth = i_mask_reg_number;
           break;
+       case LIBXSMM_X86_INSTR_VPBLENDMB:
+          if ( i_immediate != LIBXSMM_X86_IMM_UNDEF )
+          {
+              fprintf(stderr,"libxsmm_instruction_vec_compute_reg_mask for VPBLENDMB immediate=%d != %d\n",i_immediate,LIBXSMM_X86_IMM_UNDEF);
+              exit(-1);
+          }
+          l_second = 0x1;
+          l_fourth = i_mask_reg_number;
+          l_fifth = 0x1;
+          break;
+       case LIBXSMM_X86_INSTR_VPBLENDMW:
+          if ( i_immediate != LIBXSMM_X86_IMM_UNDEF )
+          {
+              fprintf(stderr,"libxsmm_instruction_vec_compute_reg_mask for VPBLENDMW immediate=%d != %d\n",i_immediate,LIBXSMM_X86_IMM_UNDEF);
+              exit(-1);
+          }
+          l_second = 0x1;
+          l_third = 0x80;
+          l_fourth = i_mask_reg_number;
+          l_fifth = 0x1;
+          break;
        case LIBXSMM_X86_INSTR_VPCMPD:
           l_second = 0x2;
           l_fifth = -0x46;
+          l_oddgrp2 = 0;
+          l_2or3grp2 = 0;
+          l_vecval2 = i_mask_reg_number;
+          break;
+       case LIBXSMM_X86_INSTR_VPCMPUD:
+          l_second = 0x2;
+          l_fifth = -0x47;
+          l_oddgrp2 = 0;
+          l_2or3grp2 = 0;
+          l_vecval2 = i_mask_reg_number;
+          break;
+       case LIBXSMM_X86_INSTR_VPCMPW:
+          l_second = 0x2;
+          l_fifth = -0x26;
+          l_third = 0x80;
+          l_oddgrp2 = 0;
+          l_2or3grp2 = 0;
+          l_vecval2 = i_mask_reg_number;
+          break;
+       case LIBXSMM_X86_INSTR_VPCMPB:
+          l_second = 0x2;
+          l_fifth = -0x26;
+          l_oddgrp2 = 0;
+          l_2or3grp2 = 0;
+          l_vecval2 = i_mask_reg_number;
+          break;
+       case LIBXSMM_X86_INSTR_VPCMPUW:
+          l_second = 0x2;
+          l_fifth = -0x27;
+          l_third = 0x80;
+          l_oddgrp2 = 0;
+          l_2or3grp2 = 0;
+          l_vecval2 = i_mask_reg_number;
+          break;
+       case LIBXSMM_X86_INSTR_VPCMPUB:
+          l_second = 0x2;
+          l_fifth = -0x27;
           l_oddgrp2 = 0;
           l_2or3grp2 = 0;
           l_vecval2 = i_mask_reg_number;
@@ -3092,11 +3150,71 @@ void libxsmm_x86_instruction_vec_compute_mem_mask ( libxsmm_generated_code* io_g
           l_oddgrp1 = 0;
           l_2or3grp1 = 0;
           break;
+       case LIBXSMM_X86_INSTR_VPCMPB:
+          l_place = i + 5;
+          l_sizereg = 64;
+          l_second = 2;
+          l_third = 1;
+          l_fifth = 0x20;
+          l_sixth = i_mask_reg_number*8;
+          l_vecval1 = 0;
+          l_vecgrp1 = 0;
+          l_oddgrp1 = 0;
+          l_2or3grp1 = 0;
+          break;
        case LIBXSMM_X86_INSTR_VPCMPD:
           l_place = i + 5;
           l_sizereg = 64;
           l_second = 2;
           l_third = 1;
+          l_sixth = i_mask_reg_number*8;
+          l_vecval1 = 0;
+          l_vecgrp1 = 0;
+          l_oddgrp1 = 0;
+          l_2or3grp1 = 0;
+          break;
+       case LIBXSMM_X86_INSTR_VPCMPW:
+          l_place = i + 5;
+          l_sizereg = 64;
+          l_second = 2;
+          l_third = 0x81;
+          l_fifth = 0x20;
+          l_sixth = i_mask_reg_number*8;
+          l_vecval1 = 0;
+          l_vecgrp1 = 0;
+          l_oddgrp1 = 0;
+          l_2or3grp1 = 0;
+          break;
+       case LIBXSMM_X86_INSTR_VPCMPUB:
+          l_place = i + 5;
+          l_sizereg = 64;
+          l_second = 2;
+          l_third = 1;
+          l_fifth = 0x1F;
+          l_sixth = i_mask_reg_number*8;
+          l_vecval1 = 0;
+          l_vecgrp1 = 0;
+          l_oddgrp1 = 0;
+          l_2or3grp1 = 0;
+          break;
+       case LIBXSMM_X86_INSTR_VPCMPUD:
+          l_place = i + 5;
+          l_sizereg = 64;
+          l_second = 2;
+          l_third = 1;
+          l_fifth = -1;
+          l_sixth = i_mask_reg_number*8;
+          l_vecval1 = 0;
+          l_vecgrp1 = 0;
+          l_oddgrp1 = 0;
+          l_2or3grp1 = 0;
+          break;
+       case LIBXSMM_X86_INSTR_VPCMPUW:
+          l_place = i + 5;
+          l_sizereg = 64;
+          l_second = 2;
+          l_third = 0x81;
+          l_fifth = 0x1F;
           l_sixth = i_mask_reg_number*8;
           l_vecval1 = 0;
           l_vecgrp1 = 0;
